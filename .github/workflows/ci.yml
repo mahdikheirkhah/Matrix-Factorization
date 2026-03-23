@@ -1,0 +1,45 @@
+name: Recommender CI
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  quality-assurance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Professional way to install Poetry without path headaches
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+          plugins: poetry-plugin-export
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check Code Formatting (Black)
+        run: poetry run black . --check
+
+      - name: Verify Audit Requirements (Imports)
+        run: |
+          poetry run python -c "import numpy; import pandas; import scipy; import streamlit; import matplotlib; print('✅ Audit Imports Passed')"
+
+      - name: Security Check
+        run: |
+          pip install safety
+          # We export to a temp file for the safety check
+          poetry export -f requirements.txt --output temp_req.txt --without-hashes
+          safety check -r temp_req.txt

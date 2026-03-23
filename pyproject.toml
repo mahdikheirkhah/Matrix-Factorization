@@ -1,0 +1,21 @@
+[project]
+name = "matrix-factorization"
+version = "0.1.0"
+description = "Advanced Movie Recommender System using SVD and PMF"
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pandas (<3.0.0)",
+    "numpy (>=2.4.3,<3.0.0)",
+    "scipy (>=1.17.1,<2.0.0)",
+    "matplotlib (>=3.10.8,<4.0.0)",
+    "streamlit (>=1.55.0,<2.0.0)",
+    "scikit-learn (>=1.8.0,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
