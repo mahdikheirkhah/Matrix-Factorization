@@ -5,6 +5,7 @@ description = "Advanced Movie Recommender System using SVD and PMF"
 authors = [
     {name = "Your Name",email = "you@example.com"}
 ]
+package-mode = false
 requires-python = ">=3.11"
 dependencies = [
     "pandas (<3.0.0)",
