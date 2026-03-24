@@ -37,7 +37,7 @@ def create_user_item_matrix(df: pd.DataFrame) -> pd.DataFrame:
         logger.error(f"❌ Unexpected error during pivot operation: {e}")
         raise
 
-def normalize_matrix(matrix: pd.DataFrame):
+def normalize_matrix(matrix: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
     """
     Subtracts the mean rating of each user to center the data.
     

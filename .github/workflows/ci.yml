@@ -36,10 +36,21 @@ jobs:
       - name: Verify Audit Requirements (Imports)
         run: |
           poetry run python -c "import numpy; import pandas; import scipy; import streamlit; import matplotlib; print('✅ Audit Imports Passed')"
-
+      
       - name: Security Check
         run: |
           pip install safety
           # We export to a temp file for the safety check
           poetry export -f requirements.txt --output temp_req.txt --without-hashes
           safety check -r temp_req.txt
+
+      - name: Run Tests with Coverage
+        run: |
+          poetry run python -m pytest --cov-report=xml tests/
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: YOUR_GITHUB_USERNAME/Matrix-Factorization
+          verbose: true
