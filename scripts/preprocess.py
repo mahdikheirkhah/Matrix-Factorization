@@ -1,5 +1,6 @@
 import os
 import logging
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from utils.data_loader import MovieLensLoader
