@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# This environment variable tells GitHub to use Node 24 for the underlying runner
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   quality-assurance:
     runs-on: ubuntu-latest
@@ -18,7 +22,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Professional way to install Poetry without path headaches
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -36,10 +39,23 @@ jobs:
       - name: Verify Audit Requirements (Imports)
         run: |
           poetry run python -c "import numpy; import pandas; import scipy; import streamlit; import matplotlib; print('✅ Audit Imports Passed')"
-
+      
       - name: Security Check
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           pip install safety
-          # We export to a temp file for the safety check
           poetry export -f requirements.txt --output temp_req.txt --without-hashes
-          safety check -r temp_req.txt
+          # Use the API key and the --non-interactive flag (if available in your version)
+          safety scan --key $SAFETY_API_KEY -r temp_req.txt
+      
+      - name: Run Tests with Coverage
+        run: |
+          poetry run python -m pytest --cov=utils --cov-report=xml tests/
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: mahdikheirkhah/Matrix-Factorization
+          verbose: true

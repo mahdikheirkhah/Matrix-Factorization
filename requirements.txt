@@ -1,3 +1,4 @@
+-i https://pkgs.safetycli.com/repository/gritlab/project/matrix-factorization/pypi/simple/
 anyio==4.12.1
 appnope==0.1.4
 argon2-cffi==25.1.0
