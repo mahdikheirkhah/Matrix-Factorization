@@ -5,6 +5,7 @@ from scipy.sparse import csr_matrix
 
 logger = logging.getLogger(__name__)
 
+
 class SVDRecommender:
     def __init__(self, k: int = 50):
         self.k = k
@@ -19,17 +20,19 @@ class SVDRecommender:
         try:
             # 1. Edge Case Check: If all values are zero, don't call svds
             if (train_matrix_df.values == 0).all():
-                logger.warning("⚠️ Input matrix is all zeros. Returning zero matrix predictions.")
+                logger.warning(
+                    "⚠️ Input matrix is all zeros. Returning zero matrix predictions."
+                )
                 self.preds_matrix = np.zeros(train_matrix_df.shape)
                 return self.preds_matrix
 
             # 2. Standard SVD Flow
             sparse_matrix = csr_matrix(train_matrix_df.values)
             u, sigma, vt = svds(sparse_matrix, k=self.k)
-            
+
             sigma_diag = np.diag(sigma)
             self.preds_matrix = np.dot(np.dot(u, sigma_diag), vt)
-            
+
             logger.info("✅ SVD Decomposition successful.")
             return self.preds_matrix
 
