@@ -1,79 +1,80 @@
 import pandas as pd
-import numpy as np
+import os
 import logging
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
 
-def create_user_item_matrix(df: pd.DataFrame) -> pd.DataFrame:
+class MovieLensLoader:
     """
-    Transforms raw ratings into a User-Item Pivot Table.
-    
-    Args:
-        df: DataFrame containing ['user_id', 'movie_id', 'rating']
-    Returns:
-        pd.DataFrame: Pivot table with users as rows and movies as columns.
+    Handles loading of the MovieLens 1M dataset with robust error handling.
     """
-    logger.info("🎬 Initializing User-Item matrix creation...")
     
-    try:
-        if df.empty:
-            logger.warning("The input DataFrame is empty. Returning an empty matrix.")
-            return pd.DataFrame()
+    def __init__(self, data_path: str = 'data/'):
+        self.data_path = data_path
+        logger.info(f"📁 Initializing MovieLensLoader with data path: {self.data_path}")
 
-        # Rows = Users, Columns = Movies
-        matrix = df.pivot(index='user_id', columns='movie_id', values='rating')
+    def load_ratings(self) -> pd.DataFrame:
+        """
+        Loads ratings.dat: UserID::MovieID::Rating::Timestamp
         
-        # Audit requirement: handle nulls (fill with 0 for unrated movies)
-        matrix_filled = matrix.fillna(0)
+        Returns:
+            pd.DataFrame: The ratings dataset.
+        """
+        path = os.path.join(self.data_path, 'ratings.dat')
+        logger.info(f"📂 Attempting to load ratings from: {path}")
         
-        logger.info(f"✅ Matrix created successfully. Shape: {matrix_filled.shape}")
-        return matrix_filled
+        try:
+            df = pd.read_csv(
+                path, 
+                sep='::', 
+                engine='python', 
+                names=['user_id', 'movie_id', 'rating', 'timestamp'],
+                encoding='ISO-8859-1'
+            )
+            
+            if df.empty:
+                logger.warning(f"⚠️ The file at {path} is empty.")
+            else:
+                logger.info(f"✅ Successfully loaded {len(df)} ratings.")
+            
+            return df
 
-    except KeyError as e:
-        logger.error(f"❌ Column mismatch in input DataFrame: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"❌ Unexpected error during pivot operation: {e}")
-        raise
+        except FileNotFoundError:
+            logger.error(f"❌ File not found: {path}. Please ensure the data exists.")
+            raise
+        except pd.errors.EmptyDataError:
+            logger.error(f"❌ No data found in file: {path}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ An unexpected error occurred while loading ratings: {e}")
+            raise
 
-def normalize_matrix(matrix: pd.DataFrame):
-    """
-    Subtracts the mean rating of each user to center the data.
-    
-    Args:
-        matrix: The filled User-Item DataFrame.
-    Returns:
-        tuple: (Normalized DataFrame, User Means Array)
-    """
-    logger.info("⚖️ Starting matrix normalization (Mean Centering)...")
-    
-    try:
-        if matrix.empty:
-            raise ValueError("Cannot normalize an empty matrix.")
+    def load_movies(self) -> pd.DataFrame:
+        """
+        Loads movies.dat: MovieID::Title::Genres
+        
+        Returns:
+            pd.DataFrame: The movies dataset.
+        """
+        path = os.path.join(self.data_path, 'movies.dat')
+        logger.info(f"📂 Attempting to load movies from: {path}")
+        
+        try:
+            df = pd.read_csv(
+                path, 
+                sep='::', 
+                engine='python', 
+                names=['movie_id', 'title', 'genres'],
+                encoding='ISO-8859-1'
+            )
+            
+            logger.info(f"✅ Successfully loaded {len(df)} movies.")
+            return df
 
-        matrix_values = matrix.values
-        
-        # Calculate mean for each row (user)
-        user_ratings_mean = np.mean(matrix_values, axis=1)
-        
-        # Subtract mean (reshaped for broadcasting)
-        # We use .reshape(-1, 1) to align the 1D means with the 2D matrix
-        matrix_normalized = matrix_values - user_ratings_mean.reshape(-1, 1)
-        
-        # Convert back to DataFrame to preserve IDs
-        norm_df = pd.DataFrame(
-            matrix_normalized, 
-            index=matrix.index, 
-            columns=matrix.columns
-        )
-        
-        logger.info("✅ Normalization complete. Data is now mean-centered.")
-        return norm_df, user_ratings_mean
-
-    except ValueError as e:
-        logger.warning(f"⚠️ Validation error during normalization: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"❌ Critical error during normalization math: {e}")
-        raise
+        except FileNotFoundError:
+            logger.error(f"❌ File not found: {path}. Ensure the MovieLens dataset is extracted.")
+            raise
+        except Exception as e:
+            logger.error(f"❌ An unexpected error occurred while loading movies: {e}")
+            raise
