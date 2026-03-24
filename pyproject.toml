@@ -13,7 +13,11 @@ dependencies = [
     "scipy (>=1.17.1,<2.0.0)",
     "matplotlib (>=3.10.8,<4.0.0)",
     "streamlit (>=1.55.0,<2.0.0)",
-    "scikit-learn (>=1.8.0,<2.0.0)"
+    "scikit-learn (>=1.8.0,<2.0.0)",
+    "pymysql (==1.1.2)",
+    "pyarrow (==23.0.1)",
+    "jinja2 (==3.1.6)",
+    "setuptools (==78.1.1)"
 ]
 
 
@@ -27,3 +31,9 @@ dev = [
     "pytest (>=9.0.2,<10.0.0)",
     "pytest-cov (>=7.1.0,<8.0.0)"
 ]
+
+[[tool.poetry.source]]
+name = "safety"
+url = "https://pkgs.safetycli.com/repository/gritlab/project/matrix-factorization/pypi/simple/"
+priority = "primary"
+

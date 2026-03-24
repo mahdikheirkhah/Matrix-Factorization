@@ -41,12 +41,14 @@ jobs:
           poetry run python -c "import numpy; import pandas; import scipy; import streamlit; import matplotlib; print('✅ Audit Imports Passed')"
       
       - name: Security Check
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           pip install safety
           poetry export -f requirements.txt --output temp_req.txt --without-hashes
-          # CHANGED: 'check' to 'scan' to resolve deprecation
-          safety scan -r temp_req.txt
-
+          # Use the API key and the --non-interactive flag (if available in your version)
+          safety scan --key $SAFETY_API_KEY -r temp_req.txt
+      
       - name: Run Tests with Coverage
         run: |
           poetry run python -m pytest --cov=utils --cov-report=xml tests/

@@ -54,7 +54,6 @@ def create_user_item_matrix(df: pd.DataFrame) -> pd.DataFrame:
             logger.warning("The input DataFrame is empty. Returning an empty matrix.")
             return pd.DataFrame()
 
-        # Rows = Users, Columns = Movies
         matrix = df.pivot(index="user_id", columns="movie_id", values="rating")
 
         # Audit requirement: handle nulls (fill with 0 for unrated movies)
