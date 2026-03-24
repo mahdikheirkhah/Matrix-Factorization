@@ -49,17 +49,17 @@ def test_create_matrix_missing_columns():
 def test_filter_sparse_data_logic():
     """Flow: Verify that users/movies with low counts are dropped."""
     from utils.matrix_creation import filter_sparse_data
-    
+
     # Create data where Movie 99 has only 1 rating, and User 9 has only 1
-    df = pd.DataFrame({
-        'user_id': [1, 1, 1, 9],
-        'movie_id': [10, 20, 30, 99],
-        'rating': [5, 5, 5, 1]
-    })
-    
+    df = pd.DataFrame(
+        {"user_id": [1, 1, 1, 9], "movie_id": [10, 20, 30, 99], "rating": [5, 5, 5, 1]}
+    )
+
     # Set min_ratings to 2. This should drop User 9 and Movie 99.
-    filtered_df = filter_sparse_data(df, min_ratings_per_user=2, min_ratings_per_movie=1)
-    
-    assert 9 not in filtered_df['user_id'].values
-    assert 99 not in filtered_df['movie_id'].values
-    assert len(filtered_df) == 3 # Only User 1's ratings remain
+    filtered_df = filter_sparse_data(
+        df, min_ratings_per_user=2, min_ratings_per_movie=1
+    )
+
+    assert 9 not in filtered_df["user_id"].values
+    assert 99 not in filtered_df["movie_id"].values
+    assert len(filtered_df) == 3  # Only User 1's ratings remain
