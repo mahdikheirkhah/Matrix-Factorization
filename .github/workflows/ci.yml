@@ -52,5 +52,5 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: YOUR_GITHUB_USERNAME/Matrix-Factorization
+          slug: mahdikheirkhah/Matrix-Factorization
           verbose: true
