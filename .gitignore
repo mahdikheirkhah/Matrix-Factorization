@@ -12,4 +12,4 @@ dist/
 *.coverage
 htmlcov/
 *.csv
-*.npyreports/
+*/*.npy
