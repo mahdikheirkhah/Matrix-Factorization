@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# Fix for the Node.js 20 deprecation warning
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   quality-assurance:
     runs-on: ubuntu-latest
@@ -18,7 +22,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Professional way to install Poetry without path headaches
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -40,17 +43,18 @@ jobs:
       - name: Security Check
         run: |
           pip install safety
-          # We export to a temp file for the safety check
           poetry export -f requirements.txt --output temp_req.txt --without-hashes
           safety check -r temp_req.txt
 
       - name: Run Tests with Coverage
         run: |
-          poetry run python -m pytest --cov-report=xml tests/
+          # CRITICAL: Added --cov=utils so pytest-cov actually runs
+          poetry run python -m pytest --cov=utils --cov-report=xml tests/
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          # Ensure this matches your exact GitHub URL casing
           slug: mahdikheirkhah/Matrix-Factorization
           verbose: true
