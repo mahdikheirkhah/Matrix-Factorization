@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
 
-# Fix for the Node.js 20 deprecation warning
+# This environment variable tells GitHub to use Node 24 for the underlying runner
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -44,17 +44,16 @@ jobs:
         run: |
           pip install safety
           poetry export -f requirements.txt --output temp_req.txt --without-hashes
-          safety check -r temp_req.txt
+          # CHANGED: 'check' to 'scan' to resolve deprecation
+          safety scan -r temp_req.txt
 
       - name: Run Tests with Coverage
         run: |
-          # CRITICAL: Added --cov=utils so pytest-cov actually runs
           poetry run python -m pytest --cov=utils --cov-report=xml tests/
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          # Ensure this matches your exact GitHub URL casing
           slug: mahdikheirkhah/Matrix-Factorization
           verbose: true

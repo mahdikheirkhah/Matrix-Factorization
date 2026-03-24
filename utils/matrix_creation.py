@@ -1,10 +1,30 @@
 import pandas as pd
 import numpy as np
 import logging
+from sklearn.model_selection import train_test_split
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
 
+def filter_sparse_data(df: pd.DataFrame, min_ratings_per_user: int = 20, min_ratings_per_movie: int = 50) -> pd.DataFrame:
+    """
+    Filters out users and movies with too few interactions to improve model quality.
+    """
+    logger.info(f"🧹 Filtering sparse data (Min Ratings: User={min_ratings_per_user}, Movie={min_ratings_per_movie})")
+    try:
+        # Filter Movies
+        movie_counts = df.groupby('movie_id').size()
+        df = df[df['movie_id'].isin(movie_counts[movie_counts >= min_ratings_per_movie].index)]
+        
+        # Filter Users
+        user_counts = df.groupby('user_id').size()
+        df = df[df['user_id'].isin(user_counts[user_counts >= min_ratings_per_user].index)]
+        
+        logger.info(f"✅ Filtering complete. Remaining interactions: {len(df)}")
+        return df
+    except Exception as e:
+        logger.error(f"❌ Error during sparse filtering: {e}")
+        raise
 
 def create_user_item_matrix(df: pd.DataFrame) -> pd.DataFrame:
     """
