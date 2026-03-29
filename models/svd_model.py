@@ -5,7 +5,6 @@ from scipy.sparse import csr_matrix
 
 logger = logging.getLogger(__name__)
 
-
 class SVDRecommender:
     def __init__(self, k: int = 50):
         self.k = k
@@ -15,23 +14,24 @@ class SVDRecommender:
         self.preds_matrix = None
 
     def fit(self, train_matrix_df):
-        """Decomposes the matrix and generates full predictions."""
         logger.info(f"🤖 Starting SVD decomposition with k={self.k}")
         try:
-            # 1. Edge Case Check: If all values are zero, don't call svds
             if (train_matrix_df.values == 0).all():
-                logger.warning(
-                    "⚠️ Input matrix is all zeros. Returning zero matrix predictions."
-                )
+                logger.warning("⚠️ Input matrix is all zeros. Returning zero matrix predictions.")
                 self.preds_matrix = np.zeros(train_matrix_df.shape)
                 return self.preds_matrix
 
-            # 2. Standard SVD Flow
             sparse_matrix = csr_matrix(train_matrix_df.values)
             u, sigma, vt = svds(sparse_matrix, k=self.k)
 
-            sigma_diag = np.diag(sigma)
-            self.preds_matrix = np.dot(np.dot(u, sigma_diag), vt)
+            # svds returns eigenvalues in ascending order; reverse for descending
+            idx = np.argsort(sigma)[::-1]
+            self.u = u[:, idx]
+            self.sigma = sigma[idx]
+            self.vt = vt[idx, :]
+
+            sigma_diag = np.diag(self.sigma)
+            self.preds_matrix = np.dot(np.dot(self.u, sigma_diag), self.vt)
 
             logger.info("✅ SVD Decomposition successful.")
             return self.preds_matrix

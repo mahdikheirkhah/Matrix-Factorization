@@ -24,13 +24,13 @@ def run_preprocessing():
         # 2. Clean data: Filter sparse users/movies
         # MovieLens 1M users already have 20+ ratings, but we filter movies for quality
         clean_ratings = filter_sparse_data(
-            ratings, min_ratings_per_user=20, min_ratings_per_movie=50
+            ratings
         )
 
         # 3. Split data (Audit Req: random_state=42)
         logger.info("✂️ Splitting data into Train/Test sets...")
         train_df, test_df = train_test_split(
-            clean_ratings, test_size=0.2, random_state=42
+            clean_ratings, test_size=0.15, random_state=42
         )
 
         # 4. Transform & Handle nulls (Pivot + fillna(0))
