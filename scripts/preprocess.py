@@ -30,7 +30,7 @@ def run_preprocessing():
         # 3. Split data (Audit Req: random_state=42)
         logger.info("✂️ Splitting data into Train/Test sets...")
         train_df, test_df = train_test_split(
-            clean_ratings, test_size=0.15, random_state=42
+            clean_ratings, test_size=0.1, random_state=42
         )
 
         # 4. Transform & Handle nulls (Pivot + fillna(0))

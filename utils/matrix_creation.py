@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def filter_sparse_data(df: pd.DataFrame, min_ratings_per_user: int = 5, min_ratings_per_movie: int = 10) -> pd.DataFrame:
+def filter_sparse_data(df: pd.DataFrame, min_ratings_per_user: int = 10, min_ratings_per_movie: int = 20) -> pd.DataFrame:
     """Filters out sparse users and movies to ensure data quality."""
     logger.info(f"🧹 Filtering sparse data (Min: User={min_ratings_per_user}, Movie={min_ratings_per_movie})")
     try:
@@ -21,40 +21,36 @@ def filter_sparse_data(df: pd.DataFrame, min_ratings_per_user: int = 5, min_rati
         raise
 
 def create_user_item_matrix(df: pd.DataFrame) -> pd.DataFrame:
-    """Transforms raw ratings into a User-Item Pivot Table, filled with 0s."""
+    """Transforms raw ratings into a User-Item Pivot Table, leaving unrated as NaN."""
     logger.info("🎬 Creating User-Item matrix...")
     try:
-        matrix = df.pivot(index="user_id", columns="movie_id", values="rating").fillna(0)
+        # ❌ REMOVED: .fillna(0)
+        # ✅ NOW: Unrated movies will naturally be NaN
+        matrix = df.pivot(index="user_id", columns="movie_id", values="rating")
         logger.info(f"✅ Matrix Shape: {matrix.shape}")
         return matrix
     except Exception as e:
-        logger.error(f"❌ Pivot error: {e}")
+        logger.error(f"❌ Matrix creation error: {e}")
         raise
 
 def normalize_matrix(matrix: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
-    """
-    Subtracts the mean of OBSERVED ratings for each user (ignoring 0s).
-    Also logs the sparsity for the Phase 5 Audit report.
-    """
-    logger.info("⚖️ Starting Matrix Normalization...")
+    """Centers user ratings around 0 by subtracting the user's mean rating."""
+    logger.info("📐 Normalizing matrix (Mean Centering)...")
     try:
-        matrix_values = matrix.values.copy()
+        matrix_values = matrix.values.astype(float)
         
-        # Calculate Sparsity for Audit Documentation
+        # Calculate sparsity based on NaNs
         total_elements = matrix_values.size
-        non_zero_elements = np.count_nonzero(matrix_values)
+        non_zero_elements = np.count_nonzero(~np.isnan(matrix_values))
         sparsity = (1 - (non_zero_elements / total_elements)) * 100
-        logger.info(f"📊 Matrix Sparsity: {sparsity:.2f}% ({total_elements - non_zero_elements} zeros)")
+        logger.info(f"📊 Matrix Sparsity: {sparsity:.2f}%")
 
-        # 1. Mask zeros to calculate true user averages
-        temp_matrix = matrix_values.copy().astype(float)
-        temp_matrix[temp_matrix == 0] = np.nan
-        user_means = np.nanmean(temp_matrix, axis=1)
-        
-        # Handle edge case: User with no ratings in the training split
+        # 1. Calculate user means (np.nanmean automatically ignores NaNs!)
+        user_means = np.nanmean(matrix_values, axis=1)
         user_means = np.nan_to_num(user_means, nan=0.0)
 
-        mask = matrix_values != 0   # correct mask for all observed entries
+        # 2. Subtract the mean ONLY from actual ratings (where it is NOT NaN)
+        mask = ~np.isnan(matrix_values)
         matrix_values[mask] -= user_means[np.where(mask)[0]]
 
         norm_df = pd.DataFrame(matrix_values, index=matrix.index, columns=matrix.columns)

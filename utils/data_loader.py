@@ -58,6 +58,10 @@ class MovieLensLoader:
         cols = ["movie_id", "title", "genres"]
         return self._load_dat_file("movies.dat", cols)
 
+    def load_users(self) -> pd.DataFrame:
+        cols = ["user_id", "gender", "age", "occupation", "zip_code"]
+        return self._load_dat_file("users.dat", cols)
+    
     def load_user_item_matrix(self) -> pd.DataFrame:
         """Loads the pre-processed user-item pivot table."""
         path = os.path.join(self.processed_path, "user_item_matrix.csv")
