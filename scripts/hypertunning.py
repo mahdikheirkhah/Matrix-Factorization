@@ -12,16 +12,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def evaluate_metrics(actuals, preds, threshold=3.5):
-    # Same as your implementation...
     actuals = np.array(actuals)
     preds = np.array(preds)
+    
+    if len(actuals) == 0:
+        return {"rmse": 999, "mae": 999, "auc": 0, "precision": 0, "recall": 0, "ste": 0}
+
     rmse = np.sqrt(mean_squared_error(actuals, preds))
     mae = mean_absolute_error(actuals, preds)
     y_true_binary = (actuals >= threshold).astype(int)
+    
+    # Probabilistic AUC needs the raw predictions
+    try:
+        auc = roc_auc_score(y_true_binary, preds)
+    except:
+        auc = 0.5
+        
     y_pred_binary = (preds >= threshold).astype(int)
-    auc = roc_auc_score(y_true_binary, preds)
     precision = precision_score(y_true_binary, y_pred_binary, zero_division=0)
     recall = recall_score(y_true_binary, y_pred_binary, zero_division=0)
+    
     errors = np.abs(actuals - preds)
     ste = np.std(errors) / np.sqrt(len(errors))
     
@@ -31,128 +41,135 @@ def evaluate_metrics(actuals, preds, threshold=3.5):
     }
 
 def run_svd_hpo(train_matrix, test_df, user_means, user_map, movie_map):
-    ks = [24]
+    ks = [21]
     best_rmse = float('inf')
     best_params, best_metrics = {}, {}
-    best_preds_matrix, best_model = None, None
 
     try:
         for k in ks:
             logger.info(f"🔎 SVD Tuning | testing k={k}...")
-            model = SVDRecommender(k=k, epochs=35) # Iterative SVD
-            preds_matrix = model.fit(train_matrix)
+            model = SVDRecommender(k=k) 
+            
+            # CRITICAL: Ensure SVDRecommender.fit returns a DataFrame
+            preds_df = model.fit(train_matrix)
+            preds_df.columns = preds_df.columns.astype(np.int64)
+            print(f"Index Type: {type(preds_df.index[0])}")
+            print(f"Column Type: {type(preds_df.columns[0])}")
+            # If it returned a numpy array, convert it back to DataFrame to match the pipeline
+            if isinstance(preds_df, np.ndarray):
+                preds_df = pd.DataFrame(preds_df, index=train_matrix.index, columns=train_matrix.columns)
 
             actuals, predictions = [], []
             for _, row in test_df.iterrows():
                 u_id, m_id, actual = int(row["user_id"]), int(row["movie_id"]), row["rating"]
-                if u_id in user_map and m_id in movie_map:
-                    u_idx, m_idx = user_map[u_id], movie_map[m_id]
-                    p = np.clip(preds_matrix[u_idx, m_idx] + user_means[u_idx], 1, 5)
+                
+                # Check if User exists in training
+                if u_id in train_matrix.index:
+                    u_idx = user_map[u_id]
+                    
+                    # Safe lookup in the residuals DataFrame
+                    try:
+                        residual = preds_df.at[u_id, m_id] if m_id in preds_df.columns else 0.0
+                    except:
+                        residual = 0.0
+                    if(residual != 0.0):
+                        print(f"residual: {residual:.10f}")    
+                    p = np.clip(residual + user_means[u_idx], 1, 5)
                     actuals.append(actual)
                     predictions.append(p)
 
             metrics = evaluate_metrics(actuals, predictions)
+            logger.info(f"RMSE: {metrics['rmse']}")
             if metrics['rmse'] < best_rmse:
                 best_rmse = metrics['rmse']
                 best_metrics = metrics
                 best_params = {"k": k}
-                best_preds_matrix = preds_matrix
-                best_model = model
-
-        np.save("reports/svd_predictions_best.npy", best_preds_matrix)
-
-        if best_model is not None:
-            # Iterative SVD factors are already scaled during SGD.
-            # We directly save U and V.T (Vt)
-            np.save("reports/svd_U_init.npy", best_model.u)
-            np.save("reports/svd_V_init.npy", best_model.vt.T)
-            logger.info(f"✅ Saved Iterative SVD factors for warm-start (k={best_params['k']})")
+                
+                os.makedirs("reports", exist_ok=True)
+                np.save("reports/svd_predictions_best.npy", preds_df.values)
 
         return best_params, best_metrics
         
     except Exception as e:
-        logger.error(f"❌ Error in SVD HPO: {e}")
-        return {}, {}
+        logger.error(f"❌ Error in SVD HPO: {e}", exc_info=True)
+        return None, None # Return None to indicate failure
 
 def run_pmf_hpo(train_matrix, test_df, user_means, user_map, movie_map):
-    param_grid = {'lrs': [0.002], 'factors': [10], 'regs': [9.5], 'epochs': [500]}
-    best_rmse = float('inf')
-    best_params, best_metrics = {}, {}
-
-    # Load SVD warm-start factors
     try:
-        U_svd = np.load("reports/svd_U_init.npy")
-        V_svd = np.load("reports/svd_V_init.npy")
-        svd_init = (U_svd, V_svd)
-        logger.info(f"🔥 Loaded SVD factors for warm-start (shape: U={U_svd.shape}, V={V_svd.shape})")
-    except FileNotFoundError:
-        svd_init = None
-        logger.warning("⚠️ No SVD factors found for warm-start. Using random initialisation.")
+        logger.info(f"🔎 PMF Tuning | Running Bayesian MCMC Ensemble...")
+        model = PMFRecommender(
+            n_factors=24,
+            n_epochs=100,
+            burn_in=20,
+            thin=2,
+            a0=20.0, 
+            b0=1.0,
+            alpha_init= 20.5,
+            alpha_u_init= 20.0,
+            alpha_v_init= 15.0,
+            validation_split=0.15
+        )
+        
+        # Fit returns the Ensembled DataFrame
+        preds_df = model.fit(train_matrix) 
+        preds_df.columns = preds_df.columns.astype(np.int64)
+        actuals, predictions = [], []
+        for _, row in test_df.iterrows():
+            u_id, m_id, actual = int(row["user_id"]), int(row["movie_id"]), row["rating"]
+            
+            if u_id in train_matrix.index:
+                u_idx = user_map[u_id]
+                
+                try:
+                    residual = preds_df.at[u_id, m_id] if m_id in preds_df.columns else 0.0
+                except:
+                    residual = 0.0
+                    
+                p = np.clip(residual + user_means[u_idx], 1, 5)
+                actuals.append(actual)
+                predictions.append(p)
 
-    try:
-        for lr in param_grid['lrs']:
-            for k in param_grid['factors']:
-                for reg in param_grid['regs']:
-                    for epoch in param_grid['epochs']:
-                        logger.info(f"🔎 PMF Tuning | LR={lr}, K={k}, Reg={reg}, Epochs={epoch}...")
-                        model = PMFRecommender(
-                            n_factors=k, learning_rate=lr, lambda_reg=reg, n_epochs=epoch,
-                            validation_split=0.1, early_stopping_patience=25,
-                        )  
-                        # Pass the svd_init parameter here
-                        model.fit(train_matrix, svd_init=svd_init)   
-
-                        full_preds = np.dot(model.U, model.V.T)
-                        actuals, predictions = [], []
-                        for _, row in test_df.iterrows():
-                            u_id, m_id, actual = int(row["user_id"]), int(row["movie_id"]), row["rating"]
-                            if u_id in user_map and m_id in movie_map:
-                                u_idx, m_idx = user_map[u_id], movie_map[m_id]
-                                p = np.clip(full_preds[u_idx, m_idx] + user_means[u_idx], 1, 5)
-                                actuals.append(actual)
-                                predictions.append(p)
-
-                        metrics = evaluate_metrics(actuals, predictions)
-                        if metrics['rmse'] < best_rmse:
-                            best_rmse = metrics['rmse']
-                            best_metrics = metrics
-                            best_params = {"lr": lr, "k": k, "reg": reg, "epochs": epoch}
-                            np.save("reports/pmf_factors/U_factors_best.npy", model.U)
-                            np.save("reports/pmf_factors/V_factors_best.npy", model.V)
-
-        return best_params, best_metrics
+        metrics = evaluate_metrics(actuals, predictions)
+        
+        os.makedirs("reports/pmf_factors", exist_ok=True)
+        np.save("reports/pmf_factors/U_factors_best.npy", model.U)
+        np.save("reports/pmf_factors/V_factors_best.npy", model.V)
+        logger.info(f"🏆 PMF Final Test RMSE: {metrics['rmse']:.4f}")
+        return {"factors": model.n_factors}, metrics
         
     except Exception as e:
-        logger.error(f"❌ Error in PMF HPO: {e}")
-        return {}, {}
+        logger.error(f"❌ Error in PMF HPO: {e}", exc_info=True)
+        return None, None
 
 def run_comprehensive_audit():
     loader = MovieLensLoader()
     train_matrix = loader.load_user_item_matrix()
+    print(train_matrix.shape)
     test_df = pd.read_csv("processed/test_ratings.csv")
     user_means = np.load("processed/user_means.npy")
-    logger.info("")
+    
     user_map = {id: i for i, id in enumerate(train_matrix.index)}
     movie_map = {id: i for i, id in enumerate(train_matrix.columns.astype(int))}
 
-    # 1. HPO based on RMSE
+    # 1. Evaluate Models
     svd_params, svd_metrics = run_svd_hpo(train_matrix, test_df, user_means, user_map, movie_map)
     pmf_params, pmf_metrics = run_pmf_hpo(train_matrix, test_df, user_means, user_map, movie_map)
     
-    # 2. Results Comparison
+    # 2. FIX: Check for failures before calculating improvement
+    if svd_metrics is None or pmf_metrics is None:
+        logger.error("🛑 One of the models failed. Improvement cannot be calculated. Check logs above.")
+        return
+
+    # 3. Results Comparison
     improvement = ((svd_metrics['rmse'] - pmf_metrics['rmse']) / svd_metrics['rmse']) * 100
     winner = "PMF" if pmf_metrics['rmse'] < svd_metrics['rmse'] else "SVD"
-
     final_report = {
         "SVD_RMSE": svd_metrics['rmse'],
         "PMF_RMSE": pmf_metrics['rmse'],
         "PMF_vs_SVD_improvement_%": round(improvement, 2),
         "svd_optimized_params": svd_params,
         "pmf_optimized_params": pmf_params,
-        "additional_metrics": {
-            "svd": svd_metrics,
-            "pmf": pmf_metrics
-        },
+        "additional_metrics": {"svd": svd_metrics, "pmf": pmf_metrics},
         "audit_summary": {
             "winner": winner,
             "statistically_significant": bool(abs(pmf_metrics['rmse'] - svd_metrics['rmse']) > (svd_metrics['ste'] * 2)),

@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import logging
 import matplotlib.pyplot as plt
 from typing import Optional, List, Tuple, Any
@@ -153,10 +154,16 @@ class PMFRecommender:
             if self.U_samples:
                 self.U = np.mean(self.U_samples, axis=0)
                 self.V = np.mean(self.V_samples, axis=0)
-            logger.info(f"Training finished. Final validation RMSE = {self.val_rmse_history[-1]:.4f}")
-            self._plot_convergence()
-            return self.train_rmse_history
-
+    
+            # Reconstruct the prediction matrix (residuals)
+            preds_matrix = np.dot(self.U, self.V.T)
+    
+            # Return as a DataFrame to keep User/Movie IDs aligned
+            return pd.DataFrame(
+                preds_matrix, 
+                index=train_matrix_df.index, 
+                columns=train_matrix_df.columns
+            )
         except Exception as e:
             logger.error(f"Fitting failed: {str(e)}", exc_info=True)
             raise
