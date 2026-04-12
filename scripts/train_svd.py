@@ -34,17 +34,21 @@ def run_svd_pipeline():
         user_map = {id: i for i, id in enumerate(train_matrix.index)}
         movie_map = {id: i for i, id in enumerate(train_matrix.columns.astype(int))}
 
-        user_means = np.load("processed/user_means.npy") # <--- Add this load
+        user_means = np.load("processed/user_means.npy")  # <--- Add this load
 
         for _, row in test_df.iterrows():
-            u_id, m_id, actual = int(row["user_id"]), int(row["movie_id"]), row["rating"]
+            u_id, m_id, actual = (
+                int(row["user_id"]),
+                int(row["movie_id"]),
+                row["rating"],
+            )
             if u_id in user_map and m_id in movie_map:
                 u_idx, m_idx = user_map[u_id], movie_map[m_id]
-                
+
                 raw_pred = preds_matrix[u_idx, m_idx]
                 # Use the helper to get a real star rating
                 final_pred = denormalize_predictions(raw_pred, u_idx, user_means)
-                
+
                 actuals.append(actual)
                 predictions.append(final_pred)
 

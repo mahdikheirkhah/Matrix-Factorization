@@ -6,12 +6,13 @@ from typing import Optional, List, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
+
 class PMFRecommender:
     """
     Bayesian Probabilistic Matrix Factorization (BPMF) with full Gibbs sampling.
     Implements hierarchical priors on user/item/observation precisions.
     """
-    
+
     def __init__(
         self,
         n_factors: int = 30,
@@ -24,7 +25,7 @@ class PMFRecommender:
         alpha_v_init: float = 1.0,
         alpha_init: float = 1.0,
         validation_split: float = 0.2,
-        random_state: int = 42
+        random_state: int = 42,
     ):
         """
         Parameters
@@ -63,8 +64,8 @@ class PMFRecommender:
         self.val_rmse_history: List[float] = []
 
         # Storage for MCMC samples (after burn‑in + thinning)
-        self.U_samples: List[np.ndarray] = []   # list of user matrices
-        self.V_samples: List[np.ndarray] = []   # list of item matrices
+        self.U_samples: List[np.ndarray] = []  # list of user matrices
+        self.V_samples: List[np.ndarray] = []  # list of item matrices
 
         # Final point estimates (ensemble mean of sampled predictions)
         self.U: Optional[np.ndarray] = None
@@ -89,7 +90,7 @@ class PMFRecommender:
         self,
         train_matrix_df: Any,
         val_matrix_df: Optional[Any] = None,
-        svd_init: Optional[Tuple[np.ndarray, np.ndarray]] = None
+        svd_init: Optional[Tuple[np.ndarray, np.ndarray]] = None,
     ) -> List[float]:
         """
         Run the full Gibbs sampler.
@@ -141,7 +142,11 @@ class PMFRecommender:
 
                 # Log progress
                 if epoch % 5 == 0 or epoch == self.n_epochs - 1:
-                    phase = "Burn-in" if epoch < self.burn_in else f"Sampling (samples={len(self.U_samples)})"
+                    phase = (
+                        "Burn-in"
+                        if epoch < self.burn_in
+                        else f"Sampling (samples={len(self.U_samples)})"
+                    )
                     logger.info(
                         f"Epoch {epoch+1:3d}/{self.n_epochs} | {phase} | "
                         f"αᵤ={self.alpha_u:.3f} αᵥ={self.alpha_v:.3f} α={self.alpha:.3f} | "
@@ -154,15 +159,15 @@ class PMFRecommender:
             if self.U_samples:
                 self.U = np.mean(self.U_samples, axis=0)
                 self.V = np.mean(self.V_samples, axis=0)
-    
+
             # Reconstruct the prediction matrix (residuals)
             preds_matrix = np.dot(self.U, self.V.T)
-    
+
             # Return as a DataFrame to keep User/Movie IDs aligned
             return pd.DataFrame(
-                preds_matrix, 
-                index=train_matrix_df.index, 
-                columns=train_matrix_df.columns
+                preds_matrix,
+                index=train_matrix_df.index,
+                columns=train_matrix_df.columns,
             )
         except Exception as e:
             logger.error(f"Fitting failed: {str(e)}", exc_info=True)
@@ -181,7 +186,7 @@ class PMFRecommender:
         if val_matrix_df is not None:
             # Use externally provided validation set
             valR = val_matrix_df.values
-            self.val_mask = ~np.isnan(valR) & mask   # only where both have observations
+            self.val_mask = ~np.isnan(valR) & mask  # only where both have observations
             self.train_mask = mask & (~self.val_mask)
             logger.info("Using external validation matrix.")
         else:
@@ -204,20 +209,26 @@ class PMFRecommender:
         self.val_users, self.val_items = np.where(self.val_mask)
         self.val_ratings = self.R_clean[self.val_users, self.val_items]
 
-        logger.info(f"Data: {self.n_users} users, {self.n_items} items, "
-                    f"train obs={len(self.train_ratings)}, val obs={len(self.val_ratings)}")
+        logger.info(
+            f"Data: {self.n_users} users, {self.n_items} items, "
+            f"train obs={len(self.train_ratings)}, val obs={len(self.val_ratings)}"
+        )
 
     def _build_sparse_indices(self) -> None:
         """Precompute lists of rated items per user and rated users per item."""
         self.user_items = [np.where(self.train_mask[u])[0] for u in range(self.n_users)]
-        self.item_users = [np.where(self.train_mask[:, i])[0] for i in range(self.n_items)]
+        self.item_users = [
+            np.where(self.train_mask[:, i])[0] for i in range(self.n_items)
+        ]
         logger.info("Sparse interaction indices built.")
 
     # ----------------------------------------------------------------------
     # Initialization
     # ----------------------------------------------------------------------
     def _initialize_latent_factors(
-        self, svd_init: Optional[Tuple[np.ndarray, np.ndarray]], rng: np.random.Generator
+        self,
+        svd_init: Optional[Tuple[np.ndarray, np.ndarray]],
+        rng: np.random.Generator,
     ) -> None:
         """Initialize U and V either from SVD warm‑start or random Gaussian."""
         if svd_init is not None:
@@ -225,14 +236,20 @@ class PMFRecommender:
             self.V = svd_init[1].copy()
             # Ensure factor dimension matches
             if self.U.shape[1] != self.n_factors:
-                logger.warning(f"SVD init dimension {self.U.shape[1]} != {self.n_factors}, truncating/padding.")
+                logger.warning(
+                    f"SVD init dimension {self.U.shape[1]} != {self.n_factors}, truncating/padding."
+                )
                 # Simple truncation or zero padding (not rigorous, but works for demo)
                 if self.U.shape[1] > self.n_factors:
-                    self.U = self.U[:, :self.n_factors]
-                    self.V = self.V[:, :self.n_factors]
+                    self.U = self.U[:, : self.n_factors]
+                    self.V = self.V[:, : self.n_factors]
                 else:
-                    pad_u = np.zeros((self.U.shape[0], self.n_factors - self.U.shape[1]))
-                    pad_v = np.zeros((self.V.shape[0], self.n_factors - self.V.shape[1]))
+                    pad_u = np.zeros(
+                        (self.U.shape[0], self.n_factors - self.U.shape[1])
+                    )
+                    pad_v = np.zeros(
+                        (self.V.shape[0], self.n_factors - self.V.shape[1])
+                    )
                     self.U = np.hstack([self.U, pad_u])
                     self.V = np.hstack([self.V, pad_v])
             logger.info("Initialized with SVD warm‑start.")
@@ -254,15 +271,15 @@ class PMFRecommender:
             if len(idx) == 0:
                 continue
 
-            V_u = self.V[idx]                     # (n_rated, D)
-            R_u = self.R_clean[u, idx]            # (n_rated,)
+            V_u = self.V[idx]  # (n_rated, D)
+            R_u = self.R_clean[u, idx]  # (n_rated,)
 
             # Posterior precision matrix
             Lambda = self.alpha_u * np.eye(self.n_factors) + self.alpha * (V_u.T @ V_u)
 
             # Compute mean = alpha * Sigma * (V_u^T R_u) using Cholesky
             try:
-                L = np.linalg.cholesky(Lambda)          # lower triangular
+                L = np.linalg.cholesky(Lambda)  # lower triangular
                 # Solve L * y = (alpha * V_u^T R_u)  -> y
                 y = np.linalg.solve(L, self.alpha * (V_u.T @ R_u))
                 # Solve L^T * mu = y  -> mu
@@ -324,12 +341,12 @@ class PMFRecommender:
         """
         # --- Sample αᵤ (user precision) ---
         shape_u = self.a0 + (self.n_users * self.n_factors) / 2.0
-        rate_u = self.b0 + 0.5 * np.sum(self.U ** 2)
-        self.alpha_u = rng.gamma(shape_u, 1.0 / rate_u)   # gamma(shape, scale)
+        rate_u = self.b0 + 0.5 * np.sum(self.U**2)
+        self.alpha_u = rng.gamma(shape_u, 1.0 / rate_u)  # gamma(shape, scale)
 
         # --- Sample αᵥ (item precision) ---
         shape_v = self.a0 + (self.n_items * self.n_factors) / 2.0
-        rate_v = self.b0 + 0.5 * np.sum(self.V ** 2)
+        rate_v = self.b0 + 0.5 * np.sum(self.V**2)
         self.alpha_v = rng.gamma(shape_v, 1.0 / rate_v)
 
         # --- Sample α (observation precision) ---
@@ -355,15 +372,21 @@ class PMFRecommender:
         """
         if not self.U_samples:
             # No samples yet: use current point estimates
-            train_pred = np.sum(self.U[self.train_users] * self.V[self.train_items], axis=1)
+            train_pred = np.sum(
+                self.U[self.train_users] * self.V[self.train_items], axis=1
+            )
             val_pred = np.sum(self.U[self.val_users] * self.V[self.val_items], axis=1)
         else:
             # Average predictions over all stored samples
             train_pred_sum = np.zeros(len(self.train_ratings))
             val_pred_sum = np.zeros(len(self.val_ratings))
             for U_s, V_s in zip(self.U_samples, self.V_samples):
-                train_pred_sum += np.sum(U_s[self.train_users] * V_s[self.train_items], axis=1)
-                val_pred_sum += np.sum(U_s[self.val_users] * V_s[self.val_items], axis=1)
+                train_pred_sum += np.sum(
+                    U_s[self.train_users] * V_s[self.train_items], axis=1
+                )
+                val_pred_sum += np.sum(
+                    U_s[self.val_users] * V_s[self.val_items], axis=1
+                )
             train_pred = train_pred_sum / len(self.U_samples)
             val_pred = val_pred_sum / len(self.U_samples)
 
@@ -401,14 +424,14 @@ class PMFRecommender:
         """Plot training and validation RMSE over epochs."""
         plt.figure(figsize=(10, 6))
         epochs = range(1, len(self.train_rmse_history) + 1)
-        plt.plot(epochs, self.train_rmse_history, label='Train RMSE')
-        plt.plot(epochs, self.val_rmse_history, label='Validation RMSE')
-        plt.axvline(x=self.burn_in, color='r', linestyle='--', label='Burn‑in ends')
-        plt.xlabel('Epoch')
-        plt.ylabel('RMSE')
-        plt.title('BPMF Convergence (Gibbs with hyperpriors)')
+        plt.plot(epochs, self.train_rmse_history, label="Train RMSE")
+        plt.plot(epochs, self.val_rmse_history, label="Validation RMSE")
+        plt.axvline(x=self.burn_in, color="r", linestyle="--", label="Burn‑in ends")
+        plt.xlabel("Epoch")
+        plt.ylabel("RMSE")
+        plt.title("BPMF Convergence (Gibbs with hyperpriors)")
         plt.legend()
         plt.grid(True)
-        plt.savefig('reports/bpmf_convergence.png', dpi=150, bbox_inches='tight')
+        plt.savefig("reports/bpmf_convergence.png", dpi=150, bbox_inches="tight")
         plt.close()
         logger.info("Convergence plot saved to reports/bpmf_convergence.png")
