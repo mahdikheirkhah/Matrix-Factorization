@@ -17,7 +17,9 @@ class SVDRecommender:
             logger.info(
                 f"🚀 Running Scipy SVDS | Factors: {self.k} | Bias Weight: {self.bias_weight}"
             )
-
+            if train_matrix_df.fillna(0).values.sum() == 0:
+                logger.warning("⚠️ Matrix is empty/all zeros. Returning zero predictions.")
+                return pd.DataFrame(0.0, index=train_matrix_df.index, columns=train_matrix_df.columns)
             # 1. Calculate raw Item Biases
             item_biases = np.nanmean(train_matrix_df.values, axis=0)
             item_biases = np.nan_to_num(item_biases, nan=0.0)
