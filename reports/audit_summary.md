@@ -6,4 +6,4 @@
 - **Relative Improvement**: 5.02%
 
 ## Conclusion
-The PMF model is the production candidate based on lower prediction error and better handling of data sparsity.
+The PMF model is the production candidate.
