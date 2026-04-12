@@ -41,52 +41,64 @@ def evaluate_metrics(actuals, preds, threshold=3.5):
     }
 
 def run_svd_hpo(train_matrix, test_df, user_means, user_map, movie_map):
-    ks = [21]
+    # Lock k=10 (fast and stable) and test different bias shrinkage weights
+    ks = [10]
+    bias_weights = [0.3, 0.4, 0.5, 0.6]  
+    
     best_rmse = float('inf')
     best_params, best_metrics = {}, {}
 
     try:
         for k in ks:
-            logger.info(f"🔎 SVD Tuning | testing k={k}...")
-            model = SVDRecommender(k=k) 
-            
-            # CRITICAL: Ensure SVDRecommender.fit returns a DataFrame
-            preds_df = model.fit(train_matrix)
-            preds_df.columns = preds_df.columns.astype(np.int64)
-            print(f"Index Type: {type(preds_df.index[0])}")
-            print(f"Column Type: {type(preds_df.columns[0])}")
-            # If it returned a numpy array, convert it back to DataFrame to match the pipeline
-            if isinstance(preds_df, np.ndarray):
-                preds_df = pd.DataFrame(preds_df, index=train_matrix.index, columns=train_matrix.columns)
-
-            actuals, predictions = [], []
-            for _, row in test_df.iterrows():
-                u_id, m_id, actual = int(row["user_id"]), int(row["movie_id"]), row["rating"]
+            for bw in bias_weights:
+                logger.info(f"🔎 SVD Tuning | testing k={k}, bias_weight={bw}...")
                 
-                # Check if User exists in training
-                if u_id in train_matrix.index:
-                    u_idx = user_map[u_id]
+                # 🚀 Pass both parameters to the model!
+                model = SVDRecommender(k=k, bias_weight=bw) 
+                
+                # 1. Get raw predictions
+                preds_raw = model.fit(train_matrix)
+                
+                # 2. CRITICAL FIX: Check if it's an array and convert to DataFrame FIRST
+                if isinstance(preds_raw, np.ndarray):
+                    preds_df = pd.DataFrame(preds_raw, index=train_matrix.index, columns=train_matrix.columns)
+                else:
+                    preds_df = preds_raw.copy()
+
+                # 3. Now it is safely a DataFrame, we can strictly enforce the integer types
+                preds_df.index = preds_df.index.astype(int)
+                preds_df.columns = preds_df.columns.astype(int)
+
+                actuals, predictions = [], []
+                for _, row in test_df.iterrows():
+                    u_id, m_id, actual = int(row["user_id"]), int(row["movie_id"]), row["rating"]
                     
-                    # Safe lookup in the residuals DataFrame
-                    try:
-                        residual = preds_df.at[u_id, m_id] if m_id in preds_df.columns else 0.0
-                    except:
-                        residual = 0.0
-                    if(residual != 0.0):
-                        print(f"residual: {residual:.10f}")    
-                    p = np.clip(residual + user_means[u_idx], 1, 5)
-                    actuals.append(actual)
-                    predictions.append(p)
+                    # Check if User exists in the map to get their mean rating
+                    if u_id in user_map:
+                        u_idx = user_map[u_id]
+                        
+                        # Safe lookup: Check that both User and Movie exist in the Matrix
+                        if u_id in preds_df.index and m_id in preds_df.columns:
+                            residual = preds_df.at[u_id, m_id]
+                        else:
+                            residual = 0.0
+                            
+                        # Reconstruct final rating
+                        p = np.clip(residual + user_means[u_idx], 1, 5)
+                        actuals.append(actual)
+                        predictions.append(p)
 
-            metrics = evaluate_metrics(actuals, predictions)
-            logger.info(f"RMSE: {metrics['rmse']}")
-            if metrics['rmse'] < best_rmse:
-                best_rmse = metrics['rmse']
-                best_metrics = metrics
-                best_params = {"k": k}
+                metrics = evaluate_metrics(actuals, predictions)
+                logger.info(f"📊 SVD RMSE (k={k}, bw={bw}): {metrics['rmse']:.4f}")
                 
-                os.makedirs("reports", exist_ok=True)
-                np.save("reports/svd_predictions_best.npy", preds_df.values)
+                if metrics['rmse'] < best_rmse:
+                    best_rmse = metrics['rmse']
+                    best_metrics = metrics
+                    # Save both parameters so they show up in your final JSON report
+                    best_params = {"k": k, "bias_weight": bw} 
+                    
+                    os.makedirs("reports", exist_ok=True)
+                    np.save("reports/svd_predictions_best.npy", preds_df.values)
 
         return best_params, best_metrics
         
@@ -98,15 +110,15 @@ def run_pmf_hpo(train_matrix, test_df, user_means, user_map, movie_map):
     try:
         logger.info(f"🔎 PMF Tuning | Running Bayesian MCMC Ensemble...")
         model = PMFRecommender(
-            n_factors=24,
-            n_epochs=100,
+            n_factors=25,
+            n_epochs=150,
             burn_in=20,
             thin=2,
-            a0=20.0, 
+            a0=1.0, 
             b0=1.0,
-            alpha_init= 20.5,
-            alpha_u_init= 20.0,
-            alpha_v_init= 15.0,
+            alpha_init= 1.0,
+            alpha_u_init= 1.0,
+            alpha_v_init= 1.0,
             validation_split=0.15
         )
         
@@ -146,6 +158,8 @@ def run_comprehensive_audit():
     train_matrix = loader.load_user_item_matrix()
     print(train_matrix.shape)
     test_df = pd.read_csv("processed/test_ratings.csv")
+    test_df['user_id'] = test_df['user_id'].astype(int)
+    test_df['movie_id'] = test_df['movie_id'].astype(int)
     user_means = np.load("processed/user_means.npy")
     
     user_map = {id: i for i, id in enumerate(train_matrix.index)}

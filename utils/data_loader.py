@@ -63,10 +63,14 @@ class MovieLensLoader:
         return self._load_dat_file("users.dat", cols)
     
     def load_user_item_matrix(self) -> pd.DataFrame:
-        """Loads the pre-processed user-item pivot table."""
         path = os.path.join(self.processed_path, "user_item_matrix.csv")
         try:
             df = pd.read_csv(path, index_col=0)
+            
+            # 🚀 CRITICAL FIX: Force columns (Movie IDs) and Index (User IDs) to be integers!
+            df.columns = df.columns.astype(int)
+            df.index = df.index.astype(int)
+            
             logger.info(f"✅ Loaded pivot matrix: {df.shape}")
             return df
         except Exception as e:

@@ -59,7 +59,7 @@ def run_preprocessing():
             logger.info("✅ All ratings respect temporal logic (no time travelers).")
 
         # 4. Clean data: Filter sparse users/movies
-        clean_ratings = filter_sparse_data(ratings, min_ratings_per_user=100, min_ratings_per_movie=150)
+        clean_ratings = filter_sparse_data(ratings, min_ratings_per_user=50, min_ratings_per_movie=150)
 
         # 5. Split data (Audit Req: random_state=42)
         logger.info("✂️ Splitting data into Train/Test sets...")
