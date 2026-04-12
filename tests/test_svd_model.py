@@ -13,7 +13,8 @@ def test_svd_reconstruction_shape():
     preds = model.fit(df)
 
     assert preds.shape == (10, 10)
-    assert not np.isnan(preds).any()
+    # ✅ FIX: Chain .any() twice to get a single True/False for the whole matrix
+    assert not np.isnan(preds).any().any()
 
 
 def test_svd_fit_failure():

@@ -16,13 +16,14 @@ def sample_ratings():
 
 
 def test_create_user_item_matrix_logic(sample_ratings):
-    """Flow: Verify pivot table shapes and fillna(0) logic."""
+    """Flow: Verify pivot table shapes."""
     matrix = create_user_item_matrix(sample_ratings)
 
     # Check dimensions: 2 users, 3 unique movies
     assert matrix.shape == (2, 3)
-    # Check that movie 102 for user 2 is 0 (it was missing in sample)
-    assert matrix.loc[2, 102] == 0
+
+    # ✅ FIX: Change 0 to np.isnan() because unrated is now NaN
+    assert np.isnan(matrix.loc[2, 102])
 
 
 def test_normalize_matrix_math():
