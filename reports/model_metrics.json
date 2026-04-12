@@ -1,6 +1,35 @@
 {
-    "svd": {
-        "rmse": 3.0864641494337537,
-        "k": 50
+    "SVD_RMSE": 0.8846191731074615,
+    "PMF_RMSE": 0.8402208901082122,
+    "PMF_vs_SVD_improvement_%": 5.02,
+    "svd_optimized_params": {
+        "k": 10,
+        "bias_weight": 0.6
+    },
+    "pmf_optimized_params": {
+        "factors": 25
+    },
+    "additional_metrics": {
+        "svd": {
+            "rmse": 0.8846191731074615,
+            "mae": 0.696405907963734,
+            "auc": 0.7965290839872283,
+            "precision": 0.7495359485212226,
+            "recall": 0.8171221973396648,
+            "ste": 0.0015356929678274043
+        },
+        "pmf": {
+            "rmse": 0.8402208901082122,
+            "mae": 0.6544133079846005,
+            "auc": 0.8183532169812058,
+            "precision": 0.7715854970041481,
+            "recall": 0.8130345627714972,
+            "ste": 0.0014835735257777262
+        }
+    },
+    "audit_summary": {
+        "winner": "PMF",
+        "statistically_significant": true,
+        "target_met": true
     }
 }

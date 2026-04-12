@@ -1,83 +1,104 @@
-import pandas as pd
 import os
+import json
 import logging
+import pandas as pd
+import numpy as np
+from typing import Tuple, Dict, Any
 
-# Configure logger for this module
+# Configure logger
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class MovieLensLoader:
     """
-    Handles loading of the MovieLens 1M dataset with robust error handling.
+    Handles loading of MovieLens dataset and model artifacts with high modularity.
     """
 
-    def __init__(self, data_path: str = "data/"):
+    def __init__(self, data_path: str = "data/", processed_path: str = "processed/"):
         self.data_path = data_path
-        logger.info(f"📁 Initializing MovieLensLoader with data path: {self.data_path}")
+        self.processed_path = processed_path
+        logger.info(
+            f"📁 Loader initialized | Data: {self.data_path} | Processed: {self.processed_path}"
+        )
+
+    def _load_dat_file(self, filename: str, columns: list) -> pd.DataFrame:
+        """
+        Internal global method to load MovieLens .dat files with standard formatting.
+        """
+        path = os.path.join(self.data_path, filename)
+        logger.info(f"📂 Loading: {path}")
+
+        try:
+            df = pd.read_csv(
+                path,
+                sep="::",
+                engine="python",
+                names=columns,
+                encoding="ISO-8859-1",
+            )
+            if df.empty:
+                logger.warning(f"⚠️ {filename} is empty.")
+            else:
+                logger.info(f"✅ Loaded {len(df)} rows from {filename}")
+            return df
+
+        except FileNotFoundError:
+            logger.error(f"❌ File not found: {path}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error loading {filename}: {str(e)}")
+            raise
 
     def load_ratings(self) -> pd.DataFrame:
-        """
-        Loads ratings.dat: UserID::MovieID::Rating::Timestamp
-
-        Returns:
-            pd.DataFrame: The ratings dataset.
-        """
-        path = os.path.join(self.data_path, "ratings.dat")
-        logger.info(f"📂 Attempting to load ratings from: {path}")
-
-        try:
-            df = pd.read_csv(
-                path,
-                sep="::",
-                engine="python",
-                names=["user_id", "movie_id", "rating", "timestamp"],
-                encoding="ISO-8859-1",
-            )
-
-            if df.empty:
-                logger.warning(f"⚠️ The file at {path} is empty.")
-            else:
-                logger.info(f"✅ Successfully loaded {len(df)} ratings.")
-
-            return df
-
-        except FileNotFoundError:
-            logger.error(f"❌ File not found: {path}. Please ensure the data exists.")
-            raise
-        except pd.errors.EmptyDataError:
-            logger.error(f"❌ No data found in file: {path}")
-            raise
-        except Exception as e:
-            logger.error(f"❌ An unexpected error occurred while loading ratings: {e}")
-            raise
+        cols = ["user_id", "movie_id", "rating", "timestamp"]
+        return self._load_dat_file("ratings.dat", cols)
 
     def load_movies(self) -> pd.DataFrame:
-        """
-        Loads movies.dat: MovieID::Title::Genres
+        cols = ["movie_id", "title", "genres"]
+        return self._load_dat_file("movies.dat", cols)
 
-        Returns:
-            pd.DataFrame: The movies dataset.
-        """
-        path = os.path.join(self.data_path, "movies.dat")
-        logger.info(f"📂 Attempting to load movies from: {path}")
+    def load_users(self) -> pd.DataFrame:
+        cols = ["user_id", "gender", "age", "occupation", "zip_code"]
+        return self._load_dat_file("users.dat", cols)
 
+    def load_user_item_matrix(self) -> pd.DataFrame:
+        path = os.path.join(self.processed_path, "user_item_matrix.csv")
         try:
-            df = pd.read_csv(
-                path,
-                sep="::",
-                engine="python",
-                names=["movie_id", "title", "genres"],
-                encoding="ISO-8859-1",
-            )
+            df = pd.read_csv(path, index_col=0)
 
-            logger.info(f"✅ Successfully loaded {len(df)} movies.")
+            # 🚀 CRITICAL FIX: Force columns (Movie IDs) and Index (User IDs) to be integers!
+            df.columns = df.columns.astype(int)
+            df.index = df.index.astype(int)
+
+            logger.info(f"✅ Loaded pivot matrix: {df.shape}")
             return df
-
-        except FileNotFoundError:
-            logger.error(
-                f"❌ File not found: {path}. Ensure the MovieLens dataset is extracted."
-            )
-            raise
         except Exception as e:
-            logger.error(f"❌ An unexpected error occurred while loading movies: {e}")
+            logger.error(f"❌ Failed to load matrix at {path}: {e}")
             raise
+
+    def load_pmf_factors(
+        self, folder: str = "reports/pmf_factors/"
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Loads latent factors U and V as numpy arrays."""
+        try:
+            u_path = os.path.join(folder, "U_factors_best.npy")
+            v_path = os.path.join(folder, "V_factors_best.npy")
+            u = np.load(u_path)
+            v = np.load(v_path)
+            logger.info(f"✅ Loaded Factors | U: {u.shape} | V: {v.shape}")
+            return u, v
+        except FileNotFoundError as e:
+            logger.error(f"❌ Factor files missing in {folder}: {e}")
+            raise
+
+    def load_metrics(self, path: str = "reports/model_metrics.json") -> Dict[str, Any]:
+        """Loads evaluation metrics from JSON."""
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+                logger.info(f"✅ Loaded metrics from {path}")
+                return data
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.error(f"❌ Failed to load metrics JSON: {e}")
+            return {}

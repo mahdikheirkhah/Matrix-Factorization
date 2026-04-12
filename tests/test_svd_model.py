@@ -13,15 +13,18 @@ def test_svd_reconstruction_shape():
     preds = model.fit(df)
 
     assert preds.shape == (10, 10)
-    assert not np.isnan(preds).any()
+    # ✅ FIX: Chain .any() twice to get a single True/False for the whole matrix
+    assert not np.isnan(preds).any().any()
 
 
-def test_svd_fit_failure():
-    """Verify error handling for invalid k (k >= dimensions)."""
+def test_svd_k_clamping():
+    """Verify that the model caps k instead of crashing."""
     df = pd.DataFrame(np.random.rand(5, 5))
-    model = SVDRecommender(k=10)
-    with pytest.raises(Exception):
-        model.fit(df)
+    model = SVDRecommender(k=10)  # Requesting k=10 for a 5x5 matrix
+    preds = model.fit(df)
+
+    assert preds.shape == (5, 5)
+    assert not np.isnan(preds).any().any()
 
 
 def test_svd_with_all_zeros():
