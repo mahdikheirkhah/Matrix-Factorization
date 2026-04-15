@@ -25,7 +25,7 @@ This project uses **Poetry** for dependency management to ensure a reproducible 
 
 **1. Clone the repository and navigate to the directory:**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/mahdikheirkhah/Matrix-Factorization.git
 cd Matrix-Factorization
 ```
 
