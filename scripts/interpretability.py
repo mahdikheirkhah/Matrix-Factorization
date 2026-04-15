@@ -106,6 +106,17 @@ def save_comparative_confusion_matrix(
     plt.close()
 
 
+def plot_predicted_vs_actual(actuals, preds):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(actuals, preds, alpha=0.5, color="blue")
+    plt.plot([1, 5], [1, 5], "r--")  # The perfect prediction line
+    plt.xlabel("Actual Ratings")
+    plt.ylabel("Predicted Ratings")
+    plt.title("Predicted vs Actual Ratings (PMF)")
+    plt.savefig("reports/predicted_vs_actual.png")
+    plt.close()
+
+
 def run_interpretability_analysis():
     loader = MovieLensLoader()
     os.makedirs("reports", exist_ok=True)
@@ -156,6 +167,7 @@ def run_interpretability_analysis():
         save_comparative_confusion_matrix(
             actuals, pmf_final_preds, "PMF Model", "pmf_confusion_matrix"
         )
+        plot_predicted_vs_actual(actuals, pmf_final_preds)
 
         logger.info(
             "🚀 All 5 Audit Issues have been addressed and documented in /reports."
