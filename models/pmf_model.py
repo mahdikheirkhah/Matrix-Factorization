@@ -287,8 +287,8 @@ class PMFRecommender:
             except np.linalg.LinAlgError:
                 # Fallback: add small jitter and retry
                 jitter = 1e-8 * np.eye(self.n_factors)
-                Lambda_jitter = Lambda + jitter
-                L = np.linalg.cholesky(Lambda_jitter)
+                lambda_jitter = Lambda + jitter
+                L = np.linalg.cholesky(lambda_jitter)
                 y = np.linalg.solve(L, self.alpha * (V_u.T @ R_u))
                 mu = np.linalg.solve(L.T, y)
 
@@ -303,6 +303,7 @@ class PMFRecommender:
                 self.U[u] = mu + v
             except np.linalg.LinAlgError:
                 # If singular, just use mean (should not happen with jitter)
+                logger.warning(f"⚠️ User {u} sampling failed, using mean only.")
                 self.U[u] = mu
 
     def _sample_items(self, rng: np.random.Generator) -> None:

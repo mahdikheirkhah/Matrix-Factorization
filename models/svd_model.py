@@ -56,7 +56,6 @@ class SVDRecommender:
             # 2. Centering and Imputation
             R_centered = train_matrix_df.values - item_biases
             R_filled = np.nan_to_num(R_centered, nan=0.0)
-
             # Safety check for k
             min_dim = min(R_filled.shape) - 1
             current_k = min(self.k, min_dim)
